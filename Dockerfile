@@ -1,50 +1,38 @@
 FROM python:3.11-slim
 
-# Установка всех системных зависимостей
+# Установка необходимых системных библиотек
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    gcc \
-    g++ \
-    make \
-    pkg-config \
-    wget \
-    curl \
-    git \
-    libffi-dev \
-    libssl-dev \
-    libxml2-dev \
-    libxslt1-dev \
-    zlib1g-dev \
-    libbz2-dev \
-    liblzma-dev \
-    libsqlite3-dev \
-    libjpeg-dev \
-    libfreetype6-dev \
-    locales \
-    tzdata \
     gfortran \
     libopenblas-dev \
+    libfreetype6-dev \
+    libpng-dev \
     libgeos-dev \
+    curl \
+    git \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Настройка локали
-RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US:en
-ENV LC_ALL en_US.UTF-8
+# Настройка UTF-8
+RUN apt-get install -y locales && \
+    sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
 
-# Создание пользователя и установка рабочей директории
+# Создание рабочего каталога
 WORKDIR /app
-RUN useradd -m appuser && chown -R appuser /app
 
+# Обновление pip и установка зависимостей
 COPY requirements.txt .
-RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip setuptools wheel \
+ && pip install --no-cache-dir --use-pep517 swisseph \
+ && pip install --no-cache-dir -r requirements.txt
 
+# Копирование исходников
 COPY . .
 
-USER appuser
-
+# Экспонирование порта
 EXPOSE 8000
 
-# ⛳️ Ключевое изменение: убираем app. перед main
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Запуск FastAPI через uvicorn
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
