@@ -1,27 +1,30 @@
-# Базовый образ
 FROM python:3.11-slim
 
-# Обновление системы и установка зависимостей
+# Установка системных зависимостей для сборки swisseph и matplotlib
 RUN apt-get update && apt-get install -y \
     build-essential \
     libopenblas-dev \
     libfreetype6-dev \
     libpng-dev \
     libgeos-dev \
-    curl \
+    libatlas-base-dev \
+    wget \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Создание рабочего каталога
+# Рабочая директория
 WORKDIR /app
 
-# Копирование файлов
+# Установка зависимостей Python
 COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Копирование исходников приложения
 COPY main.py .
 
-# Открытие порта
+# Порт
 EXPOSE 8000
 
-# Команда запуска
+# Старт
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
