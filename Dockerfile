@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# Установка необходимых системных библиотек
+# Установка всех нужных системных библиотек и локали
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gfortran \
@@ -10,29 +10,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgeos-dev \
     curl \
     git \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+    locales \
+ && sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen \
+ && locale-gen \
+ && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Настройка UTF-8
-RUN apt-get install -y locales && \
-    sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
-    locale-gen
 ENV LANG=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 
-# Создание рабочего каталога
+# Рабочая папка
 WORKDIR /app
 
-# Обновление pip и установка зависимостей
+# Установка зависимостей (включая swisseph)
 COPY requirements.txt .
 RUN pip install --upgrade pip setuptools wheel \
  && pip install --no-cache-dir --use-pep517 swisseph \
  && pip install --no-cache-dir -r requirements.txt
 
-# Копирование исходников
+# Копируем исходники
 COPY . .
 
-# Экспонирование порта
+# Порт
 EXPOSE 8000
 
-# Запуск FastAPI через uvicorn
+# Запуск
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
