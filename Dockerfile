@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# Install essential build tools and libraries for most pip packages
+# Установка зависимостей для сборки swisseph и matplotlib
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
@@ -22,22 +22,33 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libfreetype6-dev \
     locales \
     tzdata \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    gfortran \
+    libopenblas-dev \
+    libgeos-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Рабочая директория
+# Настройка локали
+RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
+ENV LC_ALL en_US.UTF-8
+
+# Создание пользователя и рабочей папки
 WORKDIR /app
+RUN useradd -m appuser && chown -R appuser /app
 
-# Копируем зависимости и устанавливаем
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel
-RUN pip install --no-cache-dir -r requirements.txt
+# Копирование зависимостей и установка
+COPY requirements.txt requirements.txt
+RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
 
-# Копируем код
-COPY main.py .
+# Копирование остального кода
+COPY . .
 
-# Экспонируем порт
+# Безопасный запуск от обычного пользователя
+USER appuser
+
+# Открытие порта
 EXPOSE 8000
 
-# Запуск сервиса
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Запуск Uvicorn из app.main
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
