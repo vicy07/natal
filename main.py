@@ -105,6 +105,5 @@ def natal_chart(
         "aspects": aspects,
         "houses": houses,
         "ascendant": asc,
-        "midheaven": mc,
-        "chart_image_base64": img_base64
+        "midheaven": mc
     }
