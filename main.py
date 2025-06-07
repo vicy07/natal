@@ -17,7 +17,6 @@ def natal_chart(
     place: str = Query(..., description="Place of birth (city, country)"),
     tz_offset: int = Query(..., description="Time zone offset from UTC (e.g., 2 for UTC+2)")
 ):
-    # Геокодинг координат по адресу
     geolocator = Nominatim(user_agent="astro_api")
     location = geolocator.geocode(place)
     if not location:
@@ -26,13 +25,11 @@ def natal_chart(
     lat = location.latitude
     lon = location.longitude
 
-    # Обработка даты и времени
     birth_local = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
     birth_utc = birth_local - timedelta(hours=tz_offset)
     jd = swe.julday(birth_utc.year, birth_utc.month, birth_utc.day,
                     birth_utc.hour + birth_utc.minute / 60)
 
-    # Планеты
     planet_names = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars',
                     'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto']
     planet_codes = [swe.SUN, swe.MOON, swe.MERCURY, swe.VENUS, swe.MARS,
@@ -46,7 +43,6 @@ def natal_chart(
         planet_degrees.append(deg)
         planet_positions[name] = round(deg, 2)
 
-    # Аспекты
     aspects = []
     aspect_types = {
         0: "Conjunction",
@@ -67,13 +63,11 @@ def natal_chart(
                         "angle": round(diff, 2)
                     })
 
-    # Дома
-    cusps, ascmc = swe.houses(jd, lat, lon, b'A')
+    cusps, ascmc = swe.houses(jd, lat, lon, b'P')
     houses = {f"House {i+1}": round(cusps[i], 2) for i in range(12)}
     asc = round(ascmc[0], 2)
     mc = round(ascmc[1], 2)
 
-    # Рисование карты
     fig, ax = plt.subplots(figsize=(6, 6), subplot_kw={'projection': 'polar'})
     ax.set_theta_zero_location("E")
     ax.set_theta_direction(-1)
