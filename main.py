@@ -158,9 +158,7 @@ def natal_chart_calc(
         "tz_offset": tz_offset
     }
     query = urllib.parse.urlencode(params)
-    image_url = f"/natal_chart/image?{query}"
 
-    data["image_url"] = image_url
     return data
 
 @app.get("/natal_chart/image")
