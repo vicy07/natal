@@ -55,15 +55,15 @@ def draw_chart(planet_degrees, houses, aspects, retrograde_planets=None):
     }
 
     aspect_colors = {
-        '☌': 'grey',
+        '☌': 'gray',
         '✶': 'green',
-        '△': 'green',
-        '□': 'red',
+        '△': 'blue',
+        '□': 'orange',
         '☍': 'red'
     }
 
-    fig = plt.figure(figsize=(9, 10))
-    ax = fig.add_subplot(211, projection='polar')
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(111, projection='polar')
     ax.set_theta_zero_location("E")
     ax.set_theta_direction(-1)
     ax.set_rticks([])
@@ -76,7 +76,7 @@ def draw_chart(planet_degrees, houses, aspects, retrograde_planets=None):
     ]
     for i, (sym, name) in enumerate(zodiac):
         angle = np.deg2rad(i * 30 + 15)
-        ax.text(angle, 1.16, f"{sym}\n{name}", ha='center', va='center', fontsize=13)
+        ax.text(angle, 1.17, f"{sym}\n{name}", ha='center', va='center', fontsize=13)
 
     # Дома и углы
     key_points = {0: "ASC", 3: "IC", 6: "DSC", 9: "MC"}
@@ -84,7 +84,7 @@ def draw_chart(planet_degrees, houses, aspects, retrograde_planets=None):
         a = np.deg2rad(houses[i])
         label = key_points.get(i, str(i+1))
         ax.plot([a, a], [0, 1.08], color='grey', lw=1, linestyle='--')
-        ax.text(a, 0.85, label, ha='center', va='center', fontsize=10, color='grey', weight='bold')  # внутрь круга
+        ax.text(a, 0.7, label, ha='center', va='center', fontsize=11, color='dimgray', weight='bold')
 
     # Внешний круг
     circle = plt.Circle((0, 0), 1.08, transform=ax.transData._b, fill=False, color="black", lw=1.5)
@@ -95,11 +95,12 @@ def draw_chart(planet_degrees, houses, aspects, retrograde_planets=None):
     for idx, (name, deg) in enumerate(planet_degrees.items()):
         ang = np.deg2rad(deg)
         is_retro = name in retrograde_planets
-        label = f"{planet_symbols[name]} {name}\n{deg:.1f}°{' ℞' if is_retro else ''}"
-        color = 'darkred' if is_retro else 'navy'
-        r_offset = 1.0 - idx * 0.005  # чуть-чуть сдвигаем внутрь для читаемости
-        ax.plot(ang, r_offset, 'o', color=color)
-        ax.text(ang, r_offset - 0.05, label, ha='center', va='center', fontsize=9, color=color)
+        r_offset = 1.0 - idx * 0.008
+        ax.plot(ang, r_offset, 'o', color='darkred' if is_retro else 'navy')
+        label = f"{planet_symbols[name]} {name}\n{deg:.1f}°"
+        if is_retro:
+            label += "\n℞"
+        ax.text(ang, r_offset - 0.06, label, ha='center', va='center', fontsize=9, color='darkred' if is_retro else 'navy')
         mapping[name] = ang
 
     # Аспекты
@@ -108,21 +109,22 @@ def draw_chart(planet_degrees, houses, aspects, retrograde_planets=None):
         a1, a2 = mapping.get(p1), mapping.get(p2)
         if a1 is not None and a2 is not None:
             color = aspect_colors.get(asp["symbol"], 'black')
-            ax.plot([a1, a2], [1.0, 1.0], color=color, lw=1, alpha=0.7)
+            ax.plot([a1, a2], [1.0, 1.0], color=color, lw=1, alpha=0.8)
             mid = (a1 + a2) / 2
-            ax.text(mid, 1.02, asp["symbol"], fontsize=12, ha='center', va='center', color=color)
+            ax.text(mid, 0.9, asp["symbol"], fontsize=14, ha='center', va='center', color=color, weight='bold')
 
-    # Легенда аспектов в нижней части
-    ax_legend = fig.add_subplot(212)
-    ax_legend.axis("off")
-    legend_text = "\n".join([
-        "☌ Conjunction — нейтральный (серый)",
-        "✶ Sextile — гармоничный (зелёный)",
-        "△ Trine — гармоничный (зелёный)",
-        "□ Square — напряжённый (красный)",
-        "☍ Opposition — напряжённый (красный)"
-    ])
-    ax_legend.text(0.5, 0.5, legend_text, fontsize=10, ha="center", va="center", family='monospace')
+    # Легенда аспектов прямо внутри круга
+    legend_items = [
+        ("☌ Conjunction", 'gray'),
+        ("✶ Sextile", 'green'),
+        ("△ Trine", 'blue'),
+        ("□ Square", 'orange'),
+        ("☍ Opposition", 'red')
+    ]
+    for i, (label, color) in enumerate(legend_items):
+        angle = np.deg2rad(300)  # фиксированный угол справа снизу
+        r = 0.3 - i * 0.05
+        ax.text(angle, r, label, color=color, fontsize=10, ha='left', va='center')
 
     plt.tight_layout()
     buf = io.BytesIO()
