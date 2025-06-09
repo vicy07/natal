@@ -41,43 +41,87 @@ def calculate_chart(date: str, time: str, place: str, tz_offset: int):
     return {"jd": jd, "lat": lat, "lon": lon,
             "planet_degrees": planet_degrees, "houses": houses}, None
 
-def draw_chart(planet_degrees, houses, aspects):
-    fig, ax = plt.subplots(figsize=(8, 8), subplot_kw={'projection': 'polar'})
+def draw_chart(planet_degrees, houses, aspects, retrograde_planets=None):
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import io
+
+    if retrograde_planets is None:
+        retrograde_planets = []
+
+    planet_symbols = {
+        'Sun': '☉', 'Moon': '☽', 'Mercury': '☿', 'Venus': '♀', 'Mars': '♂',
+        'Jupiter': '♃', 'Saturn': '♄', 'Uranus': '♅', 'Neptune': '♆', 'Pluto': '♇'
+    }
+
+    aspect_colors = {
+        '☍': 'red', '□': 'red',
+        '△': 'green', '✶': 'green',
+        '☌': 'grey'
+    }
+
+    fig, ax = plt.subplots(figsize=(9, 9), subplot_kw={'projection': 'polar'})
     ax.set_theta_zero_location("E")
     ax.set_theta_direction(-1)
     ax.set_rticks([])
 
-    zodiac = [('♈︎','Aries'),('♉︎','Taurus'),('♊︎','Gemini'),('♋︎','Cancer'),
-              ('♌︎','Leo'),('♍︎','Virgo'),('♎︎','Libra'),('♏︎','Scorpio'),
-              ('♐︎','Sagittarius'),('♑︎','Capricorn'),('♒︎','Aquarius'),('♓︎','Pisces')]
-    for i,(sym,name) in enumerate(zodiac):
-        angle = np.deg2rad(i*30 + 15)
-        ax.text(angle,1.16,f"{sym}\n{name}",ha='center',va='center',fontsize=13)
+    # Знаки зодиака
+    zodiac = [
+        ('♈︎', 'Aries'), ('♉︎', 'Taurus'), ('♊︎', 'Gemini'), ('♋︎', 'Cancer'),
+        ('♌︎', 'Leo'), ('♍︎', 'Virgo'), ('♎︎', 'Libra'), ('♏︎', 'Scorpio'),
+        ('♐︎', 'Sagittarius'), ('♑︎', 'Capricorn'), ('♒︎', 'Aquarius'), ('♓︎', 'Pisces')
+    ]
+    for i, (sym, name) in enumerate(zodiac):
+        angle = np.deg2rad(i * 30 + 15)
+        ax.text(angle, 1.16, f"{sym}\n{name}", ha='center', va='center', fontsize=13)
 
+    # Дома и углы
+    key_points = {0: "ASC", 3: "IC", 6: "DSC", 9: "MC"}
     for i in range(12):
         a = np.deg2rad(houses[i])
-        ax.plot([a,a],[0,1.08],color='grey',lw=1,linestyle='--')
-        ax.text(a,1.09,str(i+1),ha='center',va='center',fontsize=11,color='grey',weight='bold')
+        label = key_points.get(i, str(i+1))
+        ax.plot([a, a], [0, 1.08], color='grey', lw=1, linestyle='--')
+        ax.text(a, 1.09, label, ha='center', va='center', fontsize=11, color='grey', weight='bold')
 
-    circle = plt.Circle((0,0),1.08,transform=ax.transData._b,fill=False,color="black",lw=1.5)
+    # Внешний круг
+    circle = plt.Circle((0, 0), 1.08, transform=ax.transData._b, fill=False, color="black", lw=1.5)
     ax.add_artist(circle)
 
-    angs = [np.deg2rad(planet_degrees[n]) for n in planet_names]
-    for ang,name in zip(angs,planet_names):
-        ax.plot(ang,1.0,'o',color='navy')
-        ax.text(ang,0.94,name,ha='center',va='center',fontsize=10,color='navy',weight='bold')
+    # Планеты
+    mapping = {}
+    for name, deg in planet_degrees.items():
+        ang = np.deg2rad(deg)
+        is_retro = name in retrograde_planets
+        label = f"{planet_symbols[name]} {name}\n{deg:.1f}°{' ℞' if is_retro else ''}"
+        color = 'darkred' if is_retro else 'navy'
+        ax.plot(ang, 1.0, 'o', color=color)
+        ax.text(ang, 0.94, label, ha='center', va='center', fontsize=9, color=color)
+        mapping[name] = ang
 
-    mapping = {n:a for n,a in zip(planet_names,angs)}
+    # Аспекты
     for asp in aspects:
-        p1,p2 = [s.strip() for s in asp["between"].split("-")]
-        if asp["symbol"]:
-            a1,a2 = mapping.get(p1),mapping.get(p2)
-            if a1 is not None and a2 is not None:
-                ax.plot([a1,a2],[1.0,1.0],color='red',lw=1,alpha=0.7)
+        p1, p2 = [s.strip() for s in asp["between"].split("-")]
+        a1, a2 = mapping.get(p1), mapping.get(p2)
+        if a1 is not None and a2 is not None:
+            color = aspect_colors.get(asp["symbol"], 'black')
+            ax.plot([a1, a2], [1.0, 1.0], color=color, lw=1, alpha=0.7)
+            mid_angle = (a1 + a2) / 2
+            ax.text(mid_angle, 1.02, asp["symbol"], fontsize=12, ha='center', va='center', color=color)
+
+    # Легенда аспектов
+    legend_items = {
+        '☌ Conjunction': 'grey',
+        '✶ Sextile': 'green',
+        '□ Square': 'red',
+        '△ Trine': 'green',
+        '☍ Opposition': 'red'
+    }
+    for i, (label, clr) in enumerate(legend_items.items()):
+        ax.text(np.deg2rad(180), -0.1 - i * 0.05, label, color=clr, fontsize=9, ha='center', va='center', transform=ax.transAxes)
 
     plt.tight_layout()
     buf = io.BytesIO()
-    plt.savefig(buf,format='png',dpi=150,bbox_inches='tight')
+    plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
     plt.close(fig)
     buf.seek(0)
     return buf.read()
