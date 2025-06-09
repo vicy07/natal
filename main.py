@@ -20,7 +20,7 @@ aspect_types = {
     120: ("Trine", "△"),
     180: ("Opposition", "☍")
 }
-orb = 6  # градусов допуска для аспектов
+orb = 6  # degrees of tolerance for aspects
 
 def calculate_chart(date: str, time: str, place: str, tz_offset: int):
     geo = Nominatim(user_agent="astro_api").geocode(place)
@@ -68,17 +68,26 @@ def draw_chart(planet_degrees, houses, aspects, retrograde_planets=None):
     ax.set_theta_direction(-1)
     ax.set_rticks([])
 
-    # Знаки зодиака
+    # Zodiac signs with color coding by element
     zodiac = [
-        ('♈︎', 'Aries'), ('♉︎', 'Taurus'), ('♊︎', 'Gemini'), ('♋︎', 'Cancer'),
-        ('♌︎', 'Leo'), ('♍︎', 'Virgo'), ('♎︎', 'Libra'), ('♏︎', 'Scorpio'),
-        ('♐︎', 'Sagittarius'), ('♑︎', 'Capricorn'), ('♒︎', 'Aquarius'), ('♓︎', 'Pisces')
+        ('♈', 'Aries', 'red'),      # Fire
+        ('♉', 'Taurus', 'green'),   # Earth
+        ('♊', 'Gemini', 'gold'),    # Air
+        ('♋', 'Cancer', 'blue'),    # Water
+        ('♌', 'Leo', 'red'),        # Fire
+        ('♍', 'Virgo', 'green'),    # Earth
+        ('♎', 'Libra', 'gold'),     # Air
+        ('♏', 'Scorpio', 'blue'),   # Water
+        ('♐', 'Sagittarius', 'red'),# Fire
+        ('♑', 'Capricorn', 'green'),# Earth
+        ('♒', 'Aquarius', 'gold'),  # Air
+        ('♓', 'Pisces', 'blue')     # Water
     ]
-    for i, (sym, name) in enumerate(zodiac):
+    for i, (sym, name, color) in enumerate(zodiac):
         angle = np.deg2rad(i * 30 + 15)
-        ax.text(angle, 1.17, f"{sym}\n{name}", ha='center', va='center', fontsize=13)
+        ax.text(angle, 1.33, f"{sym}\n{name}", ha='center', va='center', fontsize=13, color=color)
 
-    # Дома и углы
+    # Houses and angles
     key_points = {0: "ASC", 3: "IC", 6: "DSC", 9: "MC"}
     for i in range(12):
         a = np.deg2rad(houses[i])
@@ -86,11 +95,11 @@ def draw_chart(planet_degrees, houses, aspects, retrograde_planets=None):
         ax.plot([a, a], [0, 1.08], color='grey', lw=1, linestyle='--')
         ax.text(a, 0.7, label, ha='center', va='center', fontsize=11, color='dimgray', weight='bold')
 
-    # Внешний круг
+    # Outer circle
     circle = plt.Circle((0, 0), 1.08, transform=ax.transData._b, fill=False, color="black", lw=1.5)
     ax.add_artist(circle)
 
-    # Планеты
+    # Planets
     mapping = {}
     for idx, (name, deg) in enumerate(planet_degrees.items()):
         ang = np.deg2rad(deg)
@@ -103,7 +112,7 @@ def draw_chart(planet_degrees, houses, aspects, retrograde_planets=None):
         ax.text(ang, r_offset - 0.06, label, ha='center', va='center', fontsize=9, color='darkred' if is_retro else 'navy')
         mapping[name] = ang
 
-    # Аспекты
+    # Aspects
     for asp in aspects:
         p1, p2 = [s.strip() for s in asp["between"].split("-")]
         a1, a2 = mapping.get(p1), mapping.get(p2)
@@ -113,7 +122,9 @@ def draw_chart(planet_degrees, houses, aspects, retrograde_planets=None):
             mid = (a1 + a2) / 2
             ax.text(mid, 0.9, asp["symbol"], fontsize=14, ha='center', va='center', color=color, weight='bold')
 
-    # Легенда аспектов прямо внутри круга
+    # Remove aspect legend from inside the circle
+    # Add standard legend box outside the plot
+    import matplotlib
     legend_items = [
         ("☌ Conjunction", 'gray'),
         ("✶ Sextile", 'green'),
@@ -121,10 +132,11 @@ def draw_chart(planet_degrees, houses, aspects, retrograde_planets=None):
         ("□ Square", 'orange'),
         ("☍ Opposition", 'red')
     ]
-    for i, (label, color) in enumerate(legend_items):
-        angle = np.deg2rad(300)  # фиксированный угол справа снизу
-        r = 0.3 - i * 0.05
-        ax.text(angle, r, label, color=color, fontsize=10, ha='left', va='center')
+    legend_handles = [
+        matplotlib.pyplot.Line2D([0], [0], color=color, lw=2, label=label)
+        for label, color in legend_items
+    ]
+    ax.legend(handles=legend_handles, loc='upper right', bbox_to_anchor=(1.25, 1.05), fontsize=12, frameon=True)
 
     plt.tight_layout()
     buf = io.BytesIO()
