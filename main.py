@@ -55,12 +55,15 @@ def draw_chart(planet_degrees, houses, aspects, retrograde_planets=None):
     }
 
     aspect_colors = {
-        '☍': 'red', '□': 'red',
-        '△': 'green', '✶': 'green',
-        '☌': 'grey'
+        '☌': 'grey',
+        '✶': 'green',
+        '△': 'green',
+        '□': 'red',
+        '☍': 'red'
     }
 
-    fig, ax = plt.subplots(figsize=(9, 9), subplot_kw={'projection': 'polar'})
+    fig = plt.figure(figsize=(9, 10))
+    ax = fig.add_subplot(211, projection='polar')
     ax.set_theta_zero_location("E")
     ax.set_theta_direction(-1)
     ax.set_rticks([])
@@ -81,7 +84,7 @@ def draw_chart(planet_degrees, houses, aspects, retrograde_planets=None):
         a = np.deg2rad(houses[i])
         label = key_points.get(i, str(i+1))
         ax.plot([a, a], [0, 1.08], color='grey', lw=1, linestyle='--')
-        ax.text(a, 1.09, label, ha='center', va='center', fontsize=11, color='grey', weight='bold')
+        ax.text(a, 0.85, label, ha='center', va='center', fontsize=10, color='grey', weight='bold')  # внутрь круга
 
     # Внешний круг
     circle = plt.Circle((0, 0), 1.08, transform=ax.transData._b, fill=False, color="black", lw=1.5)
@@ -89,13 +92,14 @@ def draw_chart(planet_degrees, houses, aspects, retrograde_planets=None):
 
     # Планеты
     mapping = {}
-    for name, deg in planet_degrees.items():
+    for idx, (name, deg) in enumerate(planet_degrees.items()):
         ang = np.deg2rad(deg)
         is_retro = name in retrograde_planets
         label = f"{planet_symbols[name]} {name}\n{deg:.1f}°{' ℞' if is_retro else ''}"
         color = 'darkred' if is_retro else 'navy'
-        ax.plot(ang, 1.0, 'o', color=color)
-        ax.text(ang, 0.94, label, ha='center', va='center', fontsize=9, color=color)
+        r_offset = 1.0 - idx * 0.005  # чуть-чуть сдвигаем внутрь для читаемости
+        ax.plot(ang, r_offset, 'o', color=color)
+        ax.text(ang, r_offset - 0.05, label, ha='center', va='center', fontsize=9, color=color)
         mapping[name] = ang
 
     # Аспекты
@@ -105,19 +109,20 @@ def draw_chart(planet_degrees, houses, aspects, retrograde_planets=None):
         if a1 is not None and a2 is not None:
             color = aspect_colors.get(asp["symbol"], 'black')
             ax.plot([a1, a2], [1.0, 1.0], color=color, lw=1, alpha=0.7)
-            mid_angle = (a1 + a2) / 2
-            ax.text(mid_angle, 1.02, asp["symbol"], fontsize=12, ha='center', va='center', color=color)
+            mid = (a1 + a2) / 2
+            ax.text(mid, 1.02, asp["symbol"], fontsize=12, ha='center', va='center', color=color)
 
-    # Легенда аспектов
-    legend_items = {
-        '☌ Conjunction': 'grey',
-        '✶ Sextile': 'green',
-        '□ Square': 'red',
-        '△ Trine': 'green',
-        '☍ Opposition': 'red'
-    }
-    for i, (label, clr) in enumerate(legend_items.items()):
-        ax.text(np.deg2rad(180), -0.1 - i * 0.05, label, color=clr, fontsize=9, ha='center', va='center', transform=ax.transAxes)
+    # Легенда аспектов в нижней части
+    ax_legend = fig.add_subplot(212)
+    ax_legend.axis("off")
+    legend_text = "\n".join([
+        "☌ Conjunction — нейтральный (серый)",
+        "✶ Sextile — гармоничный (зелёный)",
+        "△ Trine — гармоничный (зелёный)",
+        "□ Square — напряжённый (красный)",
+        "☍ Opposition — напряжённый (красный)"
+    ])
+    ax_legend.text(0.5, 0.5, legend_text, fontsize=10, ha="center", va="center", family='monospace')
 
     plt.tight_layout()
     buf = io.BytesIO()
