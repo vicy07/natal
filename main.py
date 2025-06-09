@@ -104,12 +104,16 @@ def draw_chart(planet_degrees, houses, aspects, retrograde_planets=None):
     for idx, (name, deg) in enumerate(planet_degrees.items()):
         ang = np.deg2rad(deg)
         is_retro = name in retrograde_planets
-        r_offset = 1.0 - idx * 0.008
-        ax.plot(ang, r_offset, 'o', color='darkred' if is_retro else 'navy')
-        label = f"{planet_symbols[name]} {name}\n{deg:.1f}°"
+        r_offset = 1.0 - idx * 0.04  # Increase spacing between planets
+        # Draw planet symbol at the exact location (no dot)
+        ax.text(ang, r_offset, planet_symbols[name], ha='center', va='center', fontsize=10, color='darkred' if is_retro else 'navy', fontweight='bold', rotation=0, rotation_mode='anchor')
+        # Draw planet name below the symbol (font size 8), with more vertical offset
+        ax.text(ang, r_offset - 0.06, name, ha='center', va='top', fontsize=8, color='darkred' if is_retro else 'navy', rotation=0, rotation_mode='anchor')
+        # Draw planet degree below the name (font size 4), with more vertical offset
+        ax.text(ang, r_offset - 0.10, f"{deg:.1f}°", ha='center', va='top', fontsize=4, color='darkred' if is_retro else 'navy', rotation=0, rotation_mode='anchor')
+        # Draw retrograde symbol if needed (font size 7, below degree)
         if is_retro:
-            label += "\n℞"
-        ax.text(ang, r_offset - 0.06, label, ha='center', va='center', fontsize=9, color='darkred' if is_retro else 'navy')
+            ax.text(ang, r_offset - 0.135, "℞", ha='center', va='top', fontsize=7, color='darkred', rotation=0, rotation_mode='anchor')
         mapping[name] = ang
 
     # Aspects

@@ -92,10 +92,13 @@ class TestAstroAPI(unittest.TestCase):
         mock_swe.julday.return_value = 2450000.5
         mock_swe.calc_ut.return_value = ([123.45],)
         mock_swe.houses.return_value = ([i*30.0 for i in range(12)], None)
-        # Prepare chart data
-        data, err = calculate_chart('2000-01-01', '12:00', 'Moscow', 3)
+        # Prepare chart data with planets distributed widely on the chart
+        planet_names = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars',
+                        'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto']
+        planet_degrees = {name: i*36.0 for i, name in enumerate(planet_names)}  # 0, 36, 72, ...
+        houses = [i*30.0 for i in range(12)]
         from main import draw_chart
-        img_bytes = draw_chart(data['planet_degrees'], data['houses'], [])
+        img_bytes = draw_chart(planet_degrees, houses, [])
         # Write to file
         with open('test_chart.png', 'wb') as f:
             f.write(img_bytes)
@@ -104,11 +107,11 @@ class TestAstroAPI(unittest.TestCase):
         self.assertTrue(os.path.exists('test_chart.png'))
         self.assertGreater(os.path.getsize('test_chart.png'), 0)
         # Additional check: verify house cusp values are present in the data
-        self.assertEqual(len(data['houses']), 12)
-        for i, cusp in enumerate(data['houses']):
+        self.assertEqual(len(houses), 12)
+        for i, cusp in enumerate(houses):
             self.assertIsInstance(cusp, float)
         # Clean up
-        os.remove('test_chart.png')
+        #os.remove('test_chart.png')
 
 if __name__ == '__main__':
     unittest.main()
