@@ -189,7 +189,12 @@ def natal_chart_image(
     data, err = calculate_chart(date, time, place, tz_offset)
     if err:
         return err
-    img = draw_chart(data["planet_degrees"], data["houses"], [])
+    img = draw_chart(
+        data["planet_degrees"],
+        data["houses"],
+        data["aspects"],
+        data["retrograde_planets"]
+    )
     return Response(content=img, media_type="image/png")
 
 def get_week_transits(natal, start_jd: float, days: int = 7):
