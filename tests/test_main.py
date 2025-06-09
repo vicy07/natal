@@ -13,7 +13,12 @@ class TestAstroAPI(unittest.TestCase):
         mock_nominatim.return_value.geocode.return_value = mock_geo
         # Mock swe
         mock_swe.julday.return_value = 2450000.5
-        mock_swe.calc_ut.return_value = ([123.45],)
+        # Mock swe.calc_ut to return position and retrograde flag
+        def fake_calc_ut(jd, code):
+            idx = int(code) % 10
+            # Alternate retrograde for even idx
+            return [[idx*36.0, 0, 0, -1.0 if idx % 2 == 0 else 1.0]]
+        mock_swe.calc_ut.side_effect = fake_calc_ut
         mock_swe.houses.return_value = ([10.0]*12, None)
         # Call
         data, err = calculate_chart('2000-01-01', '12:00', 'Moscow', 3)
@@ -21,6 +26,8 @@ class TestAstroAPI(unittest.TestCase):
         self.assertIn('planet_degrees', data)
         self.assertEqual(len(data['planet_degrees']), 10)
         self.assertEqual(len(data['houses']), 12)
+        self.assertIn('retrograde_planets', data)
+        self.assertIn('aspects', data)
 
     @patch('main.Nominatim')
     def test_calculate_chart_invalid_place(self, mock_nominatim):
@@ -60,15 +67,12 @@ class TestAstroAPI(unittest.TestCase):
         mock_nominatim.return_value.geocode.return_value = mock_geo
         # Mock swe
         mock_swe.julday.return_value = 2450000.5
-        mock_swe.calc_ut.return_value = ([123.45],)
+        mock_swe.calc_ut.return_value = ([123.45, 0, 0, 1.0],)
         mock_swe.houses.return_value = ([10.0]*12, None)
         # Mock draw_chart
         mock_draw_chart.return_value = b'binaryimage'
 
         from main import natal_chart_image
-        class DummyQuery:
-            def __init__(self, val): self.val = val
-            def __call__(self, *a, **k): return self.val
         # Call endpoint
         resp = natal_chart_image(
             date='2000-01-01',
@@ -90,15 +94,17 @@ class TestAstroAPI(unittest.TestCase):
         mock_nominatim.return_value.geocode.return_value = mock_geo
         # Mock swe
         mock_swe.julday.return_value = 2450000.5
-        mock_swe.calc_ut.return_value = ([123.45],)
+        # Mock swe.calc_ut to return position and retrograde flag
+        def fake_calc_ut(jd, code):
+            idx = int(code) % 10
+            # Alternate retrograde for even idx
+            return [[idx*36.0, 0, 0, -1.0 if idx % 2 == 0 else 1.0]]
+        mock_swe.calc_ut.side_effect = fake_calc_ut
         mock_swe.houses.return_value = ([i*30.0 for i in range(12)], None)
         # Prepare chart data with planets distributed widely on the chart
-        planet_names = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars',
-                        'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto']
-        planet_degrees = {name: i*36.0 for i, name in enumerate(planet_names)}  # 0, 36, 72, ...
-        houses = [i*30.0 for i in range(12)]
-        from main import draw_chart
-        img_bytes = draw_chart(planet_degrees, houses, [])
+        from main import calculate_chart, draw_chart
+        data, err = calculate_chart('2000-01-01', '12:00', 'Moscow', 3)
+        img_bytes = draw_chart(data['planet_degrees'], data['houses'], data['aspects'], data['retrograde_planets'])
         # Write to file
         with open('test_chart.png', 'wb') as f:
             f.write(img_bytes)
@@ -107,9 +113,11 @@ class TestAstroAPI(unittest.TestCase):
         self.assertTrue(os.path.exists('test_chart.png'))
         self.assertGreater(os.path.getsize('test_chart.png'), 0)
         # Additional check: verify house cusp values are present in the data
-        self.assertEqual(len(houses), 12)
-        for i, cusp in enumerate(houses):
+        self.assertEqual(len(data['houses']), 12)
+        for i, cusp in enumerate(data['houses']):
             self.assertIsInstance(cusp, float)
+        # Check retrograde planets alternation
+        self.assertTrue('Sun' in data['retrograde_planets'] or 'Moon' in data['retrograde_planets'])
         # Clean up
         #os.remove('test_chart.png')
 

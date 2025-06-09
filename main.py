@@ -33,13 +33,33 @@ def calculate_chart(date: str, time: str, place: str, tz_offset: int):
     jd = swe.julday(utc_time.year, utc_time.month, utc_time.day,
                     utc_time.hour + utc_time.minute / 60)
 
-    planet_degrees = {name: round(swe.calc_ut(jd, code)[0][0], 2)
-                      for name, code in zip(planet_names, planet_codes)}
+    planet_degrees = {}
+    retrograde_planets = []
+    for name, code in zip(planet_names, planet_codes):
+        pos, ret = swe.calc_ut(jd, code)[0][0], swe.calc_ut(jd, code)[0][3]
+        planet_degrees[name] = round(pos, 2)
+        if ret < 0:
+            retrograde_planets.append(name)
     cusps, _ = swe.houses(jd, lat, lon, b'P')
     houses = [round(c, 2) for c in cusps]
 
+    # Calculate aspects
+    aspects = []
+    for i, (p1, d1) in enumerate(planet_degrees.items()):
+        for j, (p2, d2) in enumerate(planet_degrees.items()):
+            if j <= i:
+                continue
+            diff = abs((d1 - d2 + 180) % 360 - 180)
+            for ang, (nm, sym) in aspect_types.items():
+                if abs(diff - ang) <= orb:
+                    aspects.append({
+                        "between": f"{p1} - {p2}",
+                        "type": nm,
+                        "symbol": sym,
+                        "angle": round(diff, 2)
+                    })
     return {"jd": jd, "lat": lat, "lon": lon,
-            "planet_degrees": planet_degrees, "houses": houses}, None
+            "planet_degrees": planet_degrees, "houses": houses, "aspects": aspects, "retrograde_planets": retrograde_planets}, None
 
 def draw_chart(planet_degrees, houses, aspects, retrograde_planets=None):
     import matplotlib.pyplot as plt
