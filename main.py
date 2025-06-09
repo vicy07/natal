@@ -10,74 +10,41 @@ import urllib.parse
 
 app = FastAPI()
 
+planet_names = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars',
+                'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto']
+planet_codes = [swe.SUN, swe.MOON, swe.MERCURY, swe.VENUS, swe.MARS,
+                swe.JUPITER, swe.SATURN, swe.URANUS, swe.NEPTUNE, swe.PLUTO]
+aspect_types = {
+    0: ("Conjunction", "☌"),
+    60: ("Sextile", "✶"),
+    90: ("Square", "□"),
+    120: ("Trine", "△"),
+    180: ("Opposition", "☍")
+}
+orb = 6  # допустимый орбис для аспектов
+
 def calculate_chart(date: str, time: str, place: str, tz_offset: int):
     geolocator = Nominatim(user_agent="astro_api")
     location = geolocator.geocode(place)
     if not location:
         return None, JSONResponse(status_code=400, content={"error": "Invalid place name"})
-
-    lat = location.latitude
-    lon = location.longitude
+    lat, lon = location.latitude, location.longitude
 
     birth_local = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
     birth_utc = birth_local - timedelta(hours=tz_offset)
     jd = swe.julday(birth_utc.year, birth_utc.month, birth_utc.day,
                     birth_utc.hour + birth_utc.minute / 60)
 
-    planet_names = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars',
-                    'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto']
-    planet_codes = [swe.SUN, swe.MOON, swe.MERCURY, swe.VENUS, swe.MARS,
-                    swe.JUPITER, swe.SATURN, swe.URANUS, swe.NEPTUNE, swe.PLUTO]
-
-    planet_degrees = []
-    planet_positions = {}
+    planet_degrees = {}
     for code, name in zip(planet_codes, planet_names):
         pos, _ = swe.calc_ut(jd, code)
-        deg = pos[0]
-        planet_degrees.append(deg)
-        planet_positions[name] = round(deg, 2)
-
-    aspects = []
-    aspect_types = {
-        0: "Conjunction",
-        60: "Sextile",
-        90: "Square",
-        120: "Trine",
-        180: "Opposition"
-    }
-    orb = 6
-    for i in range(len(planet_degrees)):
-        for j in range(i + 1, len(planet_degrees)):
-            diff = abs(planet_degrees[i] - planet_degrees[j]) % 360
-            for asp_deg, asp_name in aspect_types.items():
-                if abs(diff - asp_deg) <= orb:
-                    aspects.append({
-                        "between": f"{planet_names[i]} - {planet_names[j]}",
-                        "type": asp_name,
-                        "angle": round(diff, 2)
-                    })
+        planet_degrees[name] = round(pos[0], 2)
 
     cusps, ascmc = swe.houses(jd, lat, lon, b'P')
-    houses = {f"House {i+1}": round(cusps[i], 2) for i in range(12)}
-    asc = round(ascmc[0], 2)
-    mc = round(ascmc[1], 2)
+    houses = [round(c, 2) for c in cusps]  # список домов 1–12
 
-    data = {
-        "input": {
-            "date": date,
-            "time": time,
-            "place": place,
-            "coordinates": {"lat": lat, "lon": lon},
-            "tz_offset": tz_offset
-        },
-        "planet_positions": planet_positions,
-        "planet_degrees": planet_degrees,
-        "aspects": aspects,
-        "houses": houses,
-        "ascendant": asc,
-        "midheaven": mc
-    }
-    return data, None
+    return {"jd": jd, "lat": lat, "lon": lon,
+            "planet_degrees": planet_degrees, "houses": houses}, None
 
 def draw_chart(planet_degrees, houses, aspects):
     fig, ax = plt.subplots(figsize=(8, 8), subplot_kw={'projection': 'polar'})
@@ -85,7 +52,6 @@ def draw_chart(planet_degrees, houses, aspects):
     ax.set_theta_direction(-1)
     ax.set_rticks([])
 
-    # 1. Круг зодиака с подписями
     zodiac_signs = [
         ('♈︎', 'Aries'), ('♉︎', 'Taurus'), ('♊︎', 'Gemini'), ('♋︎', 'Cancer'),
         ('♌︎', 'Leo'), ('♍︎', 'Virgo'), ('♎︎', 'Libra'), ('♏︎', 'Scorpio'),
@@ -93,43 +59,32 @@ def draw_chart(planet_degrees, houses, aspects):
     ]
     for i, (symbol, name) in enumerate(zodiac_signs):
         angle = np.deg2rad(i * 30 + 15)
-        ax.text(angle, 1.16, f"{symbol}\n{name}", ha='center', va='center', fontsize=13, color='black')
+        ax.text(angle, 1.16, f"{symbol}\n{name}", ha='center', va='center', fontsize=13)
 
-    # 2. Дома — линии и подписи
     for i in range(12):
-        house_angle = np.deg2rad(houses[f'House {i+1}'])
+        house_angle = np.deg2rad(houses[i])
         ax.plot([house_angle, house_angle], [0, 1.08], color='grey', lw=1, linestyle='--')
-        ax.text(house_angle, 1.09, str(i+1), ha='center', va='center', fontsize=11, color='grey', weight='bold')
+        ax.text(house_angle, 1.09, str(i + 1), ha='center', va='center', fontsize=11,
+                color='grey', weight='bold')
 
-    # 3. Круговой контур
-    circle = plt.Circle((0, 0), 1.08, transform=ax.transData._b, fill=False, color="black", lw=1.5)
+    circle = plt.Circle((0, 0), 1.08, transform=ax.transData._b, fill=False,
+                        color="black", lw=1.5)
     ax.add_artist(circle)
 
-    # 4. Планеты
-    planet_names = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars',
-                    'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto']
-    planet_angles = [np.deg2rad(deg) for deg in planet_degrees]
-    for angle, name in zip(planet_angles, planet_names):
+    angles = [np.deg2rad(planet_degrees[n]) for n in planet_names]
+    for angle, name in zip(angles, planet_names):
         ax.plot(angle, 1.0, 'o', color='navy')
-        ax.text(angle, 0.94, name, fontsize=10, ha='center', va='center', color='navy', weight='bold')
+        ax.text(angle, 0.94, name, fontsize=10, ha='center', va='center',
+                color='navy', weight='bold')
 
-    # 5. Аспекты между планетами
-    aspect_type_color = {
-        "Conjunction": "red",
-        "Opposition": "red",
-        "Square": "red",
-        "Trine": "red",
-        "Sextile": "red"
-    }
-    name_to_angle = {name: ang for name, ang in zip(planet_names, planet_angles)}
+    name_to_angle = {n: a for n, a in zip(planet_names, angles)}
     for asp in aspects:
         p1, p2 = asp["between"].split(" - ")
-        typ = asp["type"]
-        if typ in aspect_type_color:
-            angle1 = name_to_angle.get(p1.strip())
-            angle2 = name_to_angle.get(p2.strip())
-            if angle1 is not None and angle2 is not None:
-                ax.plot([angle1, angle2], [1.0, 1.0], color=aspect_type_color[typ], lw=1, alpha=0.7)
+        p1, p2 = p1.strip(), p2.strip()
+        if asp["symbol"]:
+            a1, a2 = name_to_angle.get(p1), name_to_angle.get(p2)
+            if a1 is not None and a2 is not None:
+                ax.plot([a1, a2], [1.0, 1.0], color="red", lw=1, alpha=0.7)
 
     plt.tight_layout()
     buf = io.BytesIO()
@@ -140,7 +95,6 @@ def draw_chart(planet_degrees, houses, aspects):
 
 @app.get("/natal_chart/calc")
 def natal_chart_calc(
-    request: Request,
     date: str = Query(..., description="Birth date in format YYYY-MM-DD"),
     time: str = Query(..., description="Birth time in format HH:MM"),
     place: str = Query(..., description="Place of birth (city, country)"),
@@ -149,16 +103,6 @@ def natal_chart_calc(
     data, error = calculate_chart(date, time, place, tz_offset)
     if error:
         return error
-
-    # Формируем относительный URL для /natal_chart/image
-    params = {
-        "date": date,
-        "time": time,
-        "place": place,
-        "tz_offset": tz_offset
-    }
-    query = urllib.parse.urlencode(params)
-
     return data
 
 @app.get("/natal_chart/image")
@@ -171,5 +115,85 @@ def natal_chart_image(
     data, error = calculate_chart(date, time, place, tz_offset)
     if error:
         return error
-    img_bytes = draw_chart(data["planet_degrees"], data["houses"], data["aspects"])
-    return Response(content=img_bytes, media_type="image/png")
+    img = draw_chart(data["planet_degrees"], data["houses"], [])
+    return Response(content=img, media_type="image/png")
+
+def get_week_transits(natal, start_jd, days: int = 7):
+    week = []
+    for i in range(days):
+        jd = start_jd + i
+        trans = {n: round(swe.calc_ut(jd, c)[0][0], 2)
+                 for n, c in zip(planet_names, planet_codes)}
+        aspects = []
+        for t_name, t_deg in trans.items():
+            for n_name, n_deg in natal["planet_degrees"].items():
+                diff = abs((t_deg - n_deg + 180) % 360 - 180)
+                for ang, (nm, sym) in aspect_types.items():
+                    if abs(diff - ang) <= orb:
+                        aspects.append({
+                            "transit": t_name, "natal": n_name,
+                            "type": nm, "symbol": sym, "angle": round(diff, 2)
+                        })
+        houses = {}
+        for p in ["Sun", "Mars", "Jupiter"]:
+            deg = trans[p]
+            for idx, cusp in enumerate(natal["houses"]):
+                next_c = natal["houses"][(idx + 1) % 12]
+                if cusp <= deg < next_c or (idx == 11 and (deg >= cusp or deg < natal["houses"][0])):
+                    houses[p] = idx + 1
+                    break
+        week.append({
+            "jd": round(jd, 5),
+            "transits": trans,
+            "aspects": aspects,
+            "houses": houses
+        })
+    return week
+
+@app.get("/weekly_forecast")
+def weekly_forecast(
+    date: str = Query(..., description="Birth date in format YYYY-MM-DD"),
+    time: str = Query(..., description="Birth time in format HH:MM"),
+    place: str = Query(..., description="Place of birth (city, country)"),
+    tz_offset: int = Query(..., description="Time zone offset from UTC (e.g., 2 for UTC+2)")
+):
+    natal, error = calculate_chart(date, time, place, tz_offset)
+    if error:
+        return error
+
+    transits = get_week_transits(natal, natal["jd"])
+    focus_house = transits[0]["houses"].get("Sun")
+    focus = {"planet": "Sun", "house": focus_house}
+
+    zodiac_signs = [
+        "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+        "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
+    ]
+
+    moon_by_day = []
+    for i, day in enumerate(transits):
+        moon_deg = day["transits"]["Moon"]
+        sign_index = int(moon_deg // 30) % 12
+        moon_by_day.append({
+            "day_index": i,
+            "degree": moon_deg,
+            "sign": zodiac_signs[sign_index]
+        })
+
+    aspects = [asp for day in transits for asp in day["aspects"]]
+    slow = [
+        asp for asp in aspects
+        if asp["transit"] in ["Jupiter","Saturn","Uranus","Neptune","Pluto"]
+    ]
+    active = sorted({
+        h for day in transits for h in day["houses"].values()
+    })
+
+    return {
+        "start_of_week": date,
+        "focus": focus,
+        "moon_by_day": moon_by_day,
+        "aspects": aspects,
+        "slow_planets": slow,
+        "active_houses": [{"house": h} for h in active]
+    }
