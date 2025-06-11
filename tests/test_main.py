@@ -121,5 +121,74 @@ class TestAstroAPI(unittest.TestCase):
         # Clean up
         #os.remove('test_chart.png')
 
+    @patch('main.Nominatim')
+    @patch('main.swe')
+    def test_synastry_endpoint(self, mock_swe, mock_nominatim):
+        from fastapi.testclient import TestClient
+        from main import app
+        client = TestClient(app)
+        # Mock geocode
+        mock_geo = MagicMock()
+        mock_geo.latitude = 55.75
+        mock_geo.longitude = 37.62
+        mock_nominatim.return_value.geocode.return_value = mock_geo
+        # Mock swe
+        mock_swe.julday.return_value = 2450000.5
+        def fake_calc_ut(jd, code):
+            idx = int(code) % 10
+            return [[idx*36.0, 0, 0, -1.0 if idx % 2 == 0 else 1.0]]
+        mock_swe.calc_ut.side_effect = fake_calc_ut
+        mock_swe.houses.return_value = ([10.0]*12, None)
+        # Call synastry endpoint
+        resp = client.get("/synastry", params={
+            "date1": "2000-01-01", "time1": "12:00", "place1": "Moscow", "tz_offset1": 3,
+            "date2": "1992-02-02", "time2": "15:00", "place2": "London", "tz_offset2": 0
+        })
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("person1", data)
+        self.assertIn("person2", data)
+        self.assertIn("synastry_aspects", data)
+        self.assertIn("summary", data)
+        self.assertIsInstance(data["synastry_aspects"], list)
+        self.assertIsInstance(data["summary"], dict)
+
+    @patch('main.Nominatim')
+    @patch('main.swe')
+    def test_synastry_analytics_endpoint(self, mock_swe, mock_nominatim):
+        from fastapi.testclient import TestClient
+        from main import app
+        client = TestClient(app)
+        # Mock geocode
+        mock_geo = MagicMock()
+        mock_geo.latitude = 55.75
+        mock_geo.longitude = 37.62
+        mock_nominatim.return_value.geocode.return_value = mock_geo
+        # Mock swe
+        mock_swe.julday.return_value = 2450000.5
+        def fake_calc_ut(jd, code):
+            idx = int(code) % 10
+            return [[idx*36.0, 0, 0, -1.0 if idx % 2 == 0 else 1.0]]
+        mock_swe.calc_ut.side_effect = fake_calc_ut
+        mock_swe.houses.return_value = ([10.0]*12, None)
+        # Call synastry analytics endpoint
+        resp = client.get("/synastry/analytics", params={
+            "date1": "2000-01-01", "time1": "12:00", "place1": "Moscow", "tz_offset1": 3,
+            "date2": "1992-02-02", "time2": "15:00", "place2": "London", "tz_offset2": 0
+        })
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("aspect_matrix", data)
+        self.assertIn("personal_aspects", data)
+        self.assertIn("most_exact_aspect", data)
+        self.assertIn("aspect_type_count", data)
+        self.assertIn("harmonious_details", data)
+        self.assertIn("tense_details", data)
+        self.assertIn("total_aspects", data)
+        self.assertIsInstance(data["aspect_matrix"], dict)
+        self.assertIsInstance(data["personal_aspects"], list)
+        self.assertIsInstance(data["harmonious_details"], list)
+        self.assertIsInstance(data["tense_details"], list)
+
 if __name__ == '__main__':
     unittest.main()
