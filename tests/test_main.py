@@ -190,5 +190,39 @@ class TestAstroAPI(unittest.TestCase):
         self.assertIsInstance(data["harmonious_details"], list)
         self.assertIsInstance(data["tense_details"], list)
 
+    @patch('main.Nominatim')
+    @patch('main.swe')
+    def test_synastry_image_produces_image_file(self, mock_swe, mock_nominatim):
+        from fastapi.testclient import TestClient
+        from main import app
+        client = TestClient(app)
+        # Mock geocode
+        mock_geo = MagicMock()
+        mock_geo.latitude = 55.75
+        mock_geo.longitude = 37.62
+        mock_nominatim.return_value.geocode.return_value = mock_geo
+        # Mock swe
+        mock_swe.julday.return_value = 2450000.5
+        def fake_calc_ut(jd, code):
+            idx = int(code) % 10
+            return [[idx*36.0, 0, 0, -1.0 if idx % 2 == 0 else 1.0]]
+        mock_swe.calc_ut.side_effect = fake_calc_ut
+        mock_swe.houses.return_value = ([10.0]*12, None)
+        # Call synastry image endpoint
+        resp = client.get("/synastry/image", params={
+            "date1": "2000-01-01", "time1": "12:00", "place1": "Moscow", "tz_offset1": 3,
+            "date2": "1992-02-02", "time2": "15:00", "place2": "London", "tz_offset2": 0
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.headers["content-type"], "image/png")
+        self.assertGreater(len(resp.content), 1000)
+        # Write to file
+        with open('test_synastry_chart.png', 'wb') as f:
+            f.write(resp.content)
+        import os
+        self.assertTrue(os.path.exists('test_synastry_chart.png'))
+        self.assertGreater(os.path.getsize('test_synastry_chart.png'), 0)
+        #os.remove('test_synastry_chart.png')
+
 if __name__ == '__main__':
     unittest.main()
