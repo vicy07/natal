@@ -58,8 +58,37 @@ def calculate_chart(date: str, time: str, place: str, tz_offset: int):
                         "symbol": sym,
                         "angle": round(diff, 2)
                     })
+
+    # Calculate house rulers and their positions
+    # Zodiac order: Aries, Taurus, Gemini, Cancer, Leo, Virgo, Libra, Scorpio, Sagittarius, Capricorn, Aquarius, Pisces
+    sign_rulers = [
+        'Mars',    # Aries
+        'Venus',   # Taurus
+        'Mercury', # Gemini
+        'Moon',    # Cancer
+        'Sun',     # Leo
+        'Mercury', # Virgo
+        'Venus',   # Libra
+        'Pluto',   # Scorpio (modern), use 'Mars' for traditional
+        'Jupiter', # Sagittarius
+        'Saturn',  # Capricorn
+        'Uranus',  # Aquarius (modern), use 'Saturn' for traditional
+        'Neptune'  # Pisces (modern), use 'Jupiter' for traditional
+    ]
+    house_rulers = []
+    for i, cusp in enumerate(houses):
+        sign_index = int((cusp // 30) % 12)
+        ruler = sign_rulers[sign_index]
+        ruler_pos = planet_degrees.get(ruler)
+        house_rulers.append({
+            "house": i+1,
+            "sign": sign_index+1,
+            "ruler": ruler,
+            "ruler_degree": ruler_pos
+        })
+
     return {"jd": jd, "lat": lat, "lon": lon,
-            "planet_degrees": planet_degrees, "houses": houses, "aspects": aspects, "retrograde_planets": retrograde_planets}, None
+            "planet_degrees": planet_degrees, "houses": houses, "aspects": aspects, "retrograde_planets": retrograde_planets, "house_rulers": house_rulers}, None
 
 def draw_chart(planet_degrees, houses, aspects, retrograde_planets=None):
     import matplotlib.pyplot as plt
@@ -145,6 +174,28 @@ def draw_chart(planet_degrees, houses, aspects, retrograde_planets=None):
             ax.plot([a1, a2], [1.0, 1.0], color=color, lw=1, alpha=0.8)
             mid = (a1 + a2) / 2
             ax.text(mid, 0.9, asp["symbol"], fontsize=14, ha='center', va='center', color=color, weight='bold')
+
+    # Draw house rulers (управители домов)
+    import inspect
+    house_rulers = None
+    # Try to get house_rulers from the calling frame (API context)
+    frame = inspect.currentframe()
+    while frame:
+        if 'house_rulers' in frame.f_locals:
+            house_rulers = frame.f_locals['house_rulers']
+            break
+        frame = frame.f_back
+    # If not found, try to get from global context (for API usage)
+    if house_rulers is None and 'house_rulers' in globals():
+        house_rulers = globals()['house_rulers']
+    # Draw house rulers on the chart
+    if house_rulers:
+        for hr in house_rulers:
+            if hr['ruler_degree'] is not None:
+                ang = np.deg2rad(hr['ruler_degree'])
+                ax.plot(ang, 1.13, marker='*', color='purple', markersize=10, zorder=10)
+                ax.text(ang, 1.16, hr['ruler'], ha='center', va='bottom', fontsize=9, color='purple', fontweight='bold')
+                ax.text(ang, 1.19, f"{hr['house']}", ha='center', va='bottom', fontsize=7, color='purple')
 
     # Remove aspect legend from inside the circle
     # Add standard legend box outside the plot
