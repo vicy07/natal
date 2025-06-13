@@ -3,4 +3,4 @@ uvicorn
 matplotlib
 pyswisseph
 geopy
-httpx
+httpx<0.25
