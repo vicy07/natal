@@ -64,6 +64,12 @@ Then open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) for interacti
 
 ## 🧪 Running Unit Tests
 
+Before running the tests make sure all dependencies are installed:
+
+```bash
+pip install -r requirements.txt
+```
+
 To run all unit tests locally:
 
 ```bash
