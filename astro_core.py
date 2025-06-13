@@ -24,16 +24,17 @@ OFFLINE_COORDS = {
 
 
 def calculate_chart(date: str, time: str, place: str, tz_offset: int):
-    try:
-        geo = Nominatim(user_agent="astro_api").geocode(place)
-    except GeocoderServiceError:
-        geo = None
-    if not geo:
-        if place in OFFLINE_COORDS:
-            lat, lon = OFFLINE_COORDS[place]
-        else:
-            return None, {"error": "Invalid place name"}
+    if place in OFFLINE_COORDS:
+        # Avoid unnecessary network requests during testing by using
+        # predefined coordinates for common cities.
+        lat, lon = OFFLINE_COORDS[place]
     else:
+        try:
+            geo = Nominatim(user_agent="astro_api").geocode(place)
+        except GeocoderServiceError:
+            geo = None
+        if not geo:
+            return None, {"error": "Invalid place name"}
         lat, lon = geo.latitude, geo.longitude
     local = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
     utc_time = local - timedelta(hours=tz_offset)
